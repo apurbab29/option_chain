@@ -5,18 +5,20 @@ import plotly.express as px
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
-from io import BytesIO
 
-@st.cache_data  # Caches expiration dates to prevent redundant API calls
-def get_expiration_dates(ticker_symbol):
+# Cache expiration dates to prevent redundant API calls
+@st.cache_data
+def get_all_expiration_dates(ticker_symbol):
+    """Fetch all expiration dates for the given ticker."""
     ticker = yf.Ticker(ticker_symbol)
     try:
-        return [date for date in ticker.options if date >= datetime.today().strftime("%Y-%m-%d")]
+        return ticker.options
     except:
         return []
 
-@st.cache_data  # Caches options data per expiration date
+@st.cache_data
 def get_options_chain(ticker_symbol, expiration):
+    """Fetch options data for a given expiration date."""
     ticker = yf.Ticker(ticker_symbol)
     try:
         options_chain = ticker.option_chain(expiration)
@@ -28,11 +30,24 @@ def get_options_chain(ticker_symbol, expiration):
     except:
         return pd.DataFrame()
 
+@st.cache_data
+def get_valid_expirations(ticker_symbol):
+    """Return only expiration dates where at least one option has openInterest > 0."""
+    all_expirations = get_all_expiration_dates(ticker_symbol)
+    valid_expirations = []
+
+    for expiry in all_expirations:
+        df = get_options_chain(ticker_symbol, expiry)
+        if not df.empty and df["openInterest"].sum() > 0:
+            valid_expirations.append(expiry)
+
+    return valid_expirations
+
 def adjust_xticks(ax, df):
-    """Automatically adjusts the x-axis scale based on the number of unique strike prices."""
+    """Automatically adjusts x-axis scale based on unique strike prices."""
     num_strikes = len(df["strike"].unique())
     if num_strikes > 20:
-        ax.set_xticks(ax.get_xticks()[::num_strikes // 20])  # Show fewer x-axis labels
+        ax.set_xticks(ax.get_xticks()[::num_strikes // 20])
     ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
 def plot_open_interest(df):
@@ -69,34 +84,34 @@ def plot_open_interest_sorted(df):
 st.title("Optimized Options Chain Dashboard")
 
 ticker_symbol = st.text_input("Enter a US Stock Symbol (e.g., AAPL, TSLA, MSFT):").upper()
+
 if ticker_symbol:
-    valid_dates = get_expiration_dates(ticker_symbol)
+    valid_dates = get_valid_expirations(ticker_symbol)  # Fetch only valid expiration dates
+
     if valid_dates:
         selected_expiry = st.selectbox("Select an Expiration Date:", valid_dates)
-        
-        # Check if data already exists for the selected expiration date
+
         if "options_data" not in st.session_state or st.session_state.get("selected_expiry") != selected_expiry:
             st.session_state["options_data"] = None
             st.session_state["data_fetched"] = False
-        
+
         if st.button("Fetch Options Data"):
             st.session_state["options_data"] = get_options_chain(ticker_symbol, selected_expiry)
             st.session_state["data_fetched"] = True
-            st.session_state["selected_expiry"] = selected_expiry  # Store selected expiry
-        
+            st.session_state["selected_expiry"] = selected_expiry
+
         if st.session_state.get("data_fetched", False):
             options_data = st.session_state["options_data"]
-            
+
             if not options_data.empty:
                 st.success("Data fetched successfully!")
                 st.download_button("Download CSV", options_data.to_csv(index=False), f"{ticker_symbol}_options.csv", "text/csv")
-                
-                plot_choice = st.selectbox("Choose a bar plot to display:", 
-                                          ["Open Interest vs Strike Price", 
-                                           "Volume vs Strike Price", 
-                                           "Open Interest Sorted by Expiry"], key="plot_selector")
-                
-                # Display the selected plot
+
+                plot_choice = st.selectbox("Choose a bar plot to display:",
+                                           ["Open Interest vs Strike Price",
+                                            "Volume vs Strike Price",
+                                            "Open Interest Sorted by Expiry"], key="plot_selector")
+
                 plot_container = st.empty()
                 if plot_choice == "Open Interest vs Strike Price":
                     plot_container.pyplot(plot_open_interest(options_data))
