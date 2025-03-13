@@ -50,14 +50,29 @@ def adjust_xticks(ax, df):
         ax.set_xticks(ax.get_xticks()[::num_strikes // 20])
     ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
 
-def plot_open_interest(df):
-    filtered_oi_data = df[df["openInterest"] > 0]
+def plot_change_in_open_interest(df):
+    """Plots Change in Open Interest (ΔOI) against Strike Price."""
+    if "prev_openInterest" not in df.columns:
+        df["prev_openInterest"] = df.groupby("strike")["openInterest"].shift(1, fill_value=0)
+    
+    df["change_in_OI"] = df["openInterest"] - df["prev_openInterest"]
+    df_filtered = df[df["change_in_OI"] != 0]  # Filter zero changes
+    
     fig, ax = plt.subplots(figsize=(12, 6))
-    sns.barplot(x="strike", y="openInterest", hue="option_type", data=filtered_oi_data, ax=ax)
-    adjust_xticks(ax, filtered_oi_data)
-    ax.set_title("Open Interest vs. Strike Price (Filtered for Open Interest > 0)")
+    sns.barplot(
+        x="strike", 
+        y="change_in_OI", 
+        hue="option_type", 
+        data=df_filtered, 
+        ax=ax,
+        palette={"Call": "green", "Put": "red"}  # Calls in Green, Puts in Red
+    )
+    
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
     ax.set_xlabel("Strike Price")
-    ax.set_ylabel("Open Interest")
+    ax.set_ylabel("Change in Open Interest (ΔOI)")
+    ax.set_title("Change in Open Interest vs. Strike Price")
+    
     return fig
 
 def plot_volume(df):
@@ -108,13 +123,13 @@ if ticker_symbol:
                 st.download_button("Download CSV", options_data.to_csv(index=False), f"{ticker_symbol}_options.csv", "text/csv")
 
                 plot_choice = st.selectbox("Choose a bar plot to display:",
-                                           ["Open Interest vs Strike Price",
+                                           ["Change in Open Interest vs Strike Price",
                                             "Volume vs Strike Price",
                                             "Open Interest Sorted by Expiry"], key="plot_selector")
 
                 plot_container = st.empty()
-                if plot_choice == "Open Interest vs Strike Price":
-                    plot_container.pyplot(plot_open_interest(options_data))
+                if plot_choice == "Change in Open Interest vs Strike Price":
+                    plot_container.pyplot(plot_change_in_open_interest(options_data))
                 elif plot_choice == "Volume vs Strike Price":
                     plot_container.pyplot(plot_volume(options_data))
                 elif plot_choice == "Open Interest Sorted by Expiry":
