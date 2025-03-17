@@ -78,7 +78,7 @@ def plot_change_in_open_interest(df):
 def plot_volume(df):
     filtered_vol_data = df[df["volume"] > 0]
     fig, ax = plt.subplots(figsize=(14, 7))
-    sns.barplot(x="strike", y="volume", hue="option_type", data=filtered_vol_data, ax=ax)
+    sns.barplot(x="strike", y="volume", hue="option_type", data=filtered_vol_data, ax=ax, palette={"Call": "green", "Put": "red"})
     adjust_xticks(ax, filtered_vol_data)
     ax.set_xlabel("Strike Price")
     ax.set_ylabel("Volume")
@@ -88,7 +88,7 @@ def plot_volume(df):
 def plot_open_interest_sorted(df):
     df_sorted = df[df["openInterest"] > 0].sort_values(by=["expiration_date", "strike"], ascending=[False, True])
     fig, ax = plt.subplots(figsize=(14, 7))
-    sns.barplot(x="strike", y="openInterest", hue="option_type", data=df_sorted, ax=ax)
+    sns.barplot(x="strike", y="openInterest", hue="option_type", data=df_sorted, ax=ax, palette={"Call": "green", "Put": "red"})
     adjust_xticks(ax, df_sorted)
     ax.set_xlabel("Strike Price (Ordered by Days to Expiry Descending)")
     ax.set_ylabel("Open Interest")
